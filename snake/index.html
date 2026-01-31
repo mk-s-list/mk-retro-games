@@ -29,6 +29,15 @@ canvas {
   margin-top:5px;
   text-shadow:0 0 5px #0f0;
 }
+button {
+  font-size:20px;
+  padding:8px 12px;
+  margin:5px;
+  border:none;
+  border-radius:6px;
+  background:#0f0;
+  color:black;
+}
 </style>
 </head>
 <body>
@@ -49,16 +58,18 @@ const dieSound = document.getElementById("die");
 const scoreDisplay = document.getElementById("score");
 const box = 15;
 
+// GAME STATE
 let snake = [{x:150, y:150}];
 let food = randomFood();
 let dir = null;
 let score = 0;
 
-function goFull() { canvas.requestFullscreen(); }
+let baseSpeed = 300; // ms per move
+let speed = baseSpeed;
+let lastMoveTime = 0;
 
-function randomFood(){
-  return {x: Math.floor(Math.random()*20)*box, y: Math.floor(Math.random()*20)*box};
-}
+function goFull() { canvas.requestFullscreen(); }
+function randomFood(){ return {x: Math.floor(Math.random()*20)*box, y: Math.floor(Math.random()*20)*box}; }
 
 // SWIPE CONTROLS
 let touchStartX = 0;
@@ -72,6 +83,7 @@ canvas.addEventListener("touchstart", e => {
 canvas.addEventListener("touchend", e => {
   let dx = e.changedTouches[0].clientX - touchStartX;
   let dy = e.changedTouches[0].clientY - touchStartY;
+
   if(Math.abs(dx) > Math.abs(dy)){
     if(dx > 0 && dir !== "left") dir = "right";
     else if(dx < 0 && dir !== "right") dir = "left";
@@ -81,12 +93,12 @@ canvas.addEventListener("touchend", e => {
   }
 });
 
-// DRAW FUNCTIONS WITH ANIMATION
+// DRAW
 function draw(){
   ctx.fillStyle = "#111";
   ctx.fillRect(0,0,300,300);
 
-  // Snake glow effect
+  // Draw snake with gradient glow
   snake.forEach((s,i)=>{
     let alpha = 0.3 + 0.7*(i/snake.length);
     ctx.fillStyle = `rgba(0,255,0,${alpha})`;
@@ -95,18 +107,20 @@ function draw(){
     ctx.strokeRect(s.x, s.y, box, box);
   });
 
-  // Draw food with glowing pulse
-  ctx.fillStyle = "#f00";
+  // Draw food with pulse
   let pulse = 2 + Math.sin(Date.now()/200)*3;
+  ctx.fillStyle = "#f00";
   ctx.fillRect(food.x, food.y, box, box);
   ctx.strokeStyle = "#ff5555";
   ctx.lineWidth = 2;
   ctx.strokeRect(food.x-1, food.y-1, box+2, box+2);
 }
 
-// UPDATE GAME STATE
-function update(){
+// UPDATE
+function update(time){
   if(!dir) return;
+  if(time - lastMoveTime < speed) return;
+  lastMoveTime = time;
 
   let head = {...snake[0]};
   if(dir === "left") head.x -= box;
@@ -114,25 +128,32 @@ function update(){
   if(dir === "up") head.y -= box;
   if(dir === "down") head.y += box;
 
-  // Collision check
+  // Collision
   if(head.x < 0 || head.y < 0 || head.x >= 300 || head.y >= 300 ||
      snake.some(s=>s.x===head.x && s.y===head.y)){
     dieSound.play();
     snake = [{x:150,y:150}];
     dir = null;
     score = 0;
+    speed = baseSpeed;
     scoreDisplay.textContent = "Score: 0";
     food = randomFood();
     return;
   }
 
-  // Eating food
+  // Eat food
   if(head.x === food.x && head.y === food.y){
     eatSound.play();
     snake.unshift(head);
     food = randomFood();
     score += 1;
     scoreDisplay.textContent = "Score: "+score;
+
+    // Increase speed every 10 points by 5%
+    if(score % 10 === 0){
+      speed *= 0.95;
+    }
+
   } else {
     snake.pop();
     snake.unshift(head);
@@ -140,14 +161,13 @@ function update(){
 }
 
 // GAME LOOP
-function gameLoop(){
-  update();
+function gameLoop(time){
+  update(time);
   draw();
   requestAnimationFrame(gameLoop);
 }
 
 gameLoop();
 </script>
-
 </body>
 </html>
