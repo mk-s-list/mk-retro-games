@@ -13,7 +13,6 @@ body{
 canvas{
   background:#000;
   box-shadow:0 0 20px #00ffff;
-  margin-top:10px;
 }
 button{
   font-size:22px;
@@ -29,6 +28,7 @@ button{
 <body>
 
 <h2>Neon Tetris</h2>
+<button onclick="goFull()">⛶ Fullscreen</button>
 <canvas id="tetris" width="240" height="400"></canvas>
 
 <div>
@@ -38,50 +38,39 @@ button{
   <button onclick="drop()">⬇️</button>
 </div>
 
+<audio id="dropS" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-fast-game-over-233.wav"></audio>
+
 <script>
-const canvas = document.getElementById("tetris");
-const ctx = canvas.getContext("2d");
+const canvas=document.getElementById("tetris");
+const ctx=canvas.getContext("2d");
 ctx.scale(20,20);
+const dropSound=document.getElementById("dropS");
 
-const arena = Array.from({length:20},()=>Array(12).fill(0));
+function goFull(){canvas.requestFullscreen();}
 
-const pieces = [
- [[1,1,1,1]],
- [[1,1],[1,1]],
- [[0,1,0],[1,1,1]]
-];
-
+const arena=Array.from({length:20},()=>Array(12).fill(0));
+const pieces=[[[1,1,1,1]],[[1,1],[1,1]],[[0,1,0],[1,1,1]]];
 const colors=["","#ff0044","#00ffff","#ff00ff"];
-
 let player={pos:{x:5,y:0},matrix:null,color:1};
 
-function collide(arena,player){
+function collide(){
   for(let y=0;y<player.matrix.length;y++)
     for(let x=0;x<player.matrix[y].length;x++)
-      if(player.matrix[y][x] &&
-         (arena[y+player.pos.y] &&
-          arena[y+player.pos.y][x+player.pos.x])!==0)
+      if(player.matrix[y][x]&&(arena[y+player.pos.y]?.[x+player.pos.x]!==0))
         return true;
   return false;
 }
 
 function merge(){
-  player.matrix.forEach((row,y)=>{
-    row.forEach((v,x)=>{
-      if(v) arena[y+player.pos.y][x+player.pos.x]=player.color;
-    });
-  });
+  player.matrix.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v)arena[y+player.pos.y][x+player.pos.x]=player.color;
+  }));
 }
 
-function drawMatrix(matrix,offset,color){
-  matrix.forEach((row,y)=>{
-    row.forEach((v,x)=>{
-      if(v){
-        ctx.fillStyle=colors[color];
-        ctx.fillRect(x+offset.x,y+offset.y,1,1);
-      }
-    });
-  });
+function drawMatrix(m,o,c){
+  m.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v){ctx.fillStyle=colors[c];ctx.fillRect(x+o.x,y+o.y,1,1);}
+  }));
 }
 
 function draw(){
@@ -93,31 +82,29 @@ function draw(){
 
 function drop(){
   player.pos.y++;
-  if(collide(arena,player)){
+  if(collide()){
+    dropSound.play();
     player.pos.y--;
     merge();
     reset();
   }
 }
 
-function move(dir){
-  player.pos.x+=dir;
-  if(collide(arena,player)) player.pos.x-=dir;
+function move(d){
+  player.pos.x+=d;
+  if(collide())player.pos.x-=d;
 }
 
 function rotate(){
-  player.matrix = player.matrix[0].map((_,i)=>player.matrix.map(r=>r[i]).reverse());
-  if(collide(arena,player))
-    player.matrix = player.matrix[0].map((_,i)=>player.matrix.map(r=>r[r.length-1-i]));
+  player.matrix=player.matrix[0].map((_,i)=>player.matrix.map(r=>r[i]).reverse());
+  if(collide())rotate();
 }
 
 function reset(){
-  player.matrix = pieces[Math.floor(Math.random()*pieces.length)];
-  player.color = Math.floor(Math.random()*3)+1;
+  player.matrix=pieces[Math.floor(Math.random()*pieces.length)];
+  player.color=Math.floor(Math.random()*3)+1;
   player.pos={x:5,y:0};
-  if(collide(arena,player)){
-    arena.forEach(r=>r.fill(0));
-  }
+  if(collide())arena.forEach(r=>r.fill(0));
 }
 
 setInterval(()=>{drop();draw();},600);
