@@ -28,6 +28,7 @@ button{
 <body>
 
 <h2>Snake Game</h2>
+<button onclick="goFull()">⛶ Fullscreen</button>
 <canvas id="game" width="300" height="300"></canvas>
 
 <div>
@@ -37,61 +38,65 @@ button{
   <button onclick="setDir('right')">➡️</button>
 </div>
 
-<script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-const box = 15;
+<audio id="eat" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-jump-coin-216.wav"></audio>
+<audio id="die" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.wav"></audio>
 
-let snake = [{x:150,y:150}];
-let food = randomFood();
-let dir = null;
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const eatSound=document.getElementById("eat");
+const dieSound=document.getElementById("die");
+const box=15;
+
+let snake=[{x:150,y:150}];
+let food=randomFood();
+let dir=null;
+
+function goFull(){
+  canvas.requestFullscreen();
+}
 
 function setDir(d){
-  if(d==="left" && dir!=="right") dir=d;
-  if(d==="right" && dir!=="left") dir=d;
-  if(d==="up" && dir!=="down") dir=d;
-  if(d==="down" && dir!=="up") dir=d;
+  if(d==="left"&&dir!=="right")dir=d;
+  if(d==="right"&&dir!=="left")dir=d;
+  if(d==="up"&&dir!=="down")dir=d;
+  if(d==="down"&&dir!=="up")dir=d;
 }
 
 function randomFood(){
-  return {
-    x: Math.floor(Math.random()*20)*box,
-    y: Math.floor(Math.random()*20)*box
-  };
+  return {x:Math.floor(Math.random()*20)*box,y:Math.floor(Math.random()*20)*box};
 }
 
 function draw(){
   ctx.clearRect(0,0,300,300);
-
   snake.forEach((s,i)=>{
-    ctx.fillStyle = i==0?"#00ff00":"#007700";
+    ctx.fillStyle=i==0?"#00ff00":"#007700";
     ctx.fillRect(s.x,s.y,box,box);
   });
-
   ctx.fillStyle="red";
   ctx.fillRect(food.x,food.y,box,box);
 
-  if(!dir) return;
+  if(!dir)return;
 
-  let head = {...snake[0]};
-  if(dir==="left") head.x-=box;
-  if(dir==="right") head.x+=box;
-  if(dir==="up") head.y-=box;
-  if(dir==="down") head.y+=box;
+  let head={...snake[0]};
+  if(dir==="left")head.x-=box;
+  if(dir==="right")head.x+=box;
+  if(dir==="up")head.y-=box;
+  if(dir==="down")head.y+=box;
 
   if(head.x<0||head.y<0||head.x>=300||head.y>=300||
      snake.some(s=>s.x==head.x&&s.y==head.y)){
+    dieSound.play();
     snake=[{x:150,y:150}];
     dir=null;
     food=randomFood();
     return;
   }
 
-  if(head.x===food.x && head.y===food.y){
+  if(head.x===food.x&&head.y===food.y){
+    eatSound.play();
     food=randomFood();
-  } else {
-    snake.pop();
-  }
+  }else snake.pop();
 
   snake.unshift(head);
 }
