@@ -3,170 +3,243 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Neon Snake</title>
+<title>Zoo Snake</title>
 <style>
 body {
   margin:0;
-  background:black;
+  background:#88c070;
   font-family: monospace;
-  text-align:center;
   overflow:hidden;
-}
-h1 {
-  color:#0f0;
-  margin:10px 0;
-  text-shadow:0 0 10px #0f0;
+  touch-action: none;
 }
 canvas {
-  background:#111;
-  margin-top:10px;
-  box-shadow:0 0 20px #0f0;
-  touch-action:none;
+  display:block;
+  margin:auto;
+  background: url('https://i.ibb.co/9tnR7vX/zoo-cage-bg.jpg') no-repeat center;
+  background-size: cover;
+  box-shadow:0 0 20px #000;
 }
-#score {
-  color:#0f0;
-  font-size:18px;
-  margin-top:5px;
-  text-shadow:0 0 5px #0f0;
+#scoreBoard {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  color:#fff;
+  font-size: 20px;
+  background: rgba(0,0,0,0.5);
+  padding: 6px 10px;
+  border-radius: 8px;
+  z-index: 10;
 }
-button {
-  font-size:20px;
-  padding:8px 12px;
-  margin:5px;
+#gameOverScreen {
+  position: fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background: rgba(0,0,0,0.7);
+  display:flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  font-family: monospace;
+  display:none;
+}
+#gameOverScreen h1{
+  font-size: 48px;
+  margin:10px;
+}
+#gameOverScreen h2{
+  font-size: 28px;
+  margin:10px;
+}
+#gameOverScreen button{
+  padding:10px 20px;
+  font-size:22px;
   border:none;
   border-radius:6px;
   background:#0f0;
-  color:black;
+  color:#000;
+  margin-top:15px;
 }
 </style>
 </head>
 <body>
 
-<h1>Neon Snake</h1>
-<button onclick="goFull()">⛶ Fullscreen</button>
+<div id="scoreBoard">Score: 0 | Best: 0</div>
 <canvas id="game" width="300" height="300"></canvas>
-<div id="score">Score: 0</div>
 
+<div id="gameOverScreen">
+  <h1>Game Over!</h1>
+  <h2>Score: 0 | Best: 0</h2>
+  <button onclick="restartGame()">Play Again</button>
+</div>
+
+<!-- Sounds -->
 <audio id="eat" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-jump-coin-216.wav"></audio>
-<audio id="die" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.wav"></audio>
+<audio id="hit" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.wav"></audio>
+<audio id="fatten" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-bonus-2033.wav"></audio>
+<audio id="throw" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-coin-drop-2075.wav"></audio>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const eatSound = document.getElementById("eat");
-const dieSound = document.getElementById("die");
-const scoreDisplay = document.getElementById("score");
+const hitSound = document.getElementById("hit");
+const fattenSound = document.getElementById("fatten");
+const throwSound = document.getElementById("throw");
+const scoreBoard = document.getElementById("scoreBoard");
+const gameOverScreen = document.getElementById("gameOverScreen");
+const gameOverScore = gameOverScreen.querySelector("h2");
+
 const box = 15;
+let snake, food, dir, score, speed, lastMoveTime;
+let bestScore = 0;
+let gameRunning = true;
 
-// GAME STATE
-let snake = [{x:150, y:150}];
-let food = randomFood();
-let dir = null;
-let score = 0;
+// Cage border
+const cage = {x:0, y:0, w:300, h:300, thickness:10};
 
-let baseSpeed = 300; // ms per move
-let speed = baseSpeed;
-let lastMoveTime = 0;
+// Zoo keeper animation
+let keeper = {x:0, y:0, width:30, height:30, dir:1, frame:0};
 
-function goFull() { canvas.requestFullscreen(); }
-function randomFood(){ return {x: Math.floor(Math.random()*20)*box, y: Math.floor(Math.random()*20)*box}; }
+function initGame(){
+  snake = [{x:150,y:150}];
+  food = randomFood();
+  dir = null;
+  score = 0;
+  speed = 300;
+  lastMoveTime = 0;
+  gameRunning = true;
+  updateScore();
+  gameOverScreen.style.display = "none";
+}
+
+function randomFood(){
+  let x = Math.floor(Math.random() * ((cage.w - cage.thickness*2)/box)) * box + cage.thickness;
+  let y = Math.floor(Math.random() * ((cage.h - cage.thickness*2)/box)) * box + cage.thickness;
+  return {x, y};
+}
 
 // SWIPE CONTROLS
-let touchStartX = 0;
-let touchStartY = 0;
-
-canvas.addEventListener("touchstart", e => {
+let touchStartX = 0, touchStartY = 0;
+canvas.addEventListener("touchstart", e=>{
   touchStartX = e.touches[0].clientX;
   touchStartY = e.touches[0].clientY;
 });
-
-canvas.addEventListener("touchend", e => {
+canvas.addEventListener("touchend", e=>{
   let dx = e.changedTouches[0].clientX - touchStartX;
   let dy = e.changedTouches[0].clientY - touchStartY;
-
-  if(Math.abs(dx) > Math.abs(dy)){
-    if(dx > 0 && dir !== "left") dir = "right";
-    else if(dx < 0 && dir !== "right") dir = "left";
+  if(Math.abs(dx)>Math.abs(dy)){
+    if(dx>0 && dir!=="left") dir="right";
+    else if(dx<0 && dir!=="right") dir="left";
   } else {
-    if(dy > 0 && dir !== "up") dir = "down";
-    else if(dy < 0 && dir !== "down") dir = "up";
+    if(dy>0 && dir!=="up") dir="down";
+    else if(dy<0 && dir!=="down") dir="up";
   }
 });
 
 // DRAW
 function draw(){
-  ctx.fillStyle = "#111";
-  ctx.fillRect(0,0,300,300);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // Draw snake with gradient glow
+  // cage
+  ctx.fillStyle="#654321";
+  ctx.fillRect(cage.x, cage.y, cage.w, cage.thickness);
+  ctx.fillRect(cage.x, cage.y+cage.h-cage.thickness, cage.w, cage.thickness);
+  ctx.fillRect(cage.x, cage.y, cage.thickness, cage.h);
+  ctx.fillRect(cage.x+cage.w-cage.thickness, cage.y, cage.thickness, cage.h);
+
+  // snake with glowing tail and slight slither
   snake.forEach((s,i)=>{
     let alpha = 0.3 + 0.7*(i/snake.length);
+    let wiggle = Math.sin(Date.now()/200 + i) * 2;
     ctx.fillStyle = `rgba(0,255,0,${alpha})`;
-    ctx.fillRect(s.x, s.y, box, box);
-    ctx.strokeStyle = `rgba(0,255,0,${alpha})`;
-    ctx.strokeRect(s.x, s.y, box, box);
+    ctx.fillRect(s.x+wiggle/4,s.y,box,box);
+    ctx.strokeStyle = `rgba(0,200,0,${alpha})`;
+    ctx.strokeRect(s.x+wiggle/4,s.y,box,box);
   });
 
-  // Draw food with pulse
+  // food (chicken piece) with pulse
   let pulse = 2 + Math.sin(Date.now()/200)*3;
-  ctx.fillStyle = "#f00";
-  ctx.fillRect(food.x, food.y, box, box);
-  ctx.strokeStyle = "#ff5555";
-  ctx.lineWidth = 2;
+  ctx.fillStyle="#ff0";
+  ctx.fillRect(food.x,food.y,box,box);
+  ctx.strokeStyle="#ffaa00";
+  ctx.lineWidth=2;
   ctx.strokeRect(food.x-1, food.y-1, box+2, box+2);
+
+  // zoo keeper animation throwing food
+  keeper.frame += 0.1;
+  keeper.x += keeper.dir * 1.5;
+  if(keeper.x>cage.w-keeper.width || keeper.x<0) keeper.dir *= -1;
+  ctx.fillStyle="#ff0000";
+  ctx.fillRect(keeper.x, keeper.y, keeper.width, keeper.height); // zookeeper block
 }
 
 // UPDATE
 function update(time){
-  if(!dir) return;
+  if(!dir || !gameRunning) return;
   if(time - lastMoveTime < speed) return;
   lastMoveTime = time;
 
   let head = {...snake[0]};
-  if(dir === "left") head.x -= box;
-  if(dir === "right") head.x += box;
-  if(dir === "up") head.y -= box;
-  if(dir === "down") head.y += box;
+  if(dir==="left") head.x -= box;
+  if(dir==="right") head.x += box;
+  if(dir==="up") head.y -= box;
+  if(dir==="down") head.y += box;
 
-  // Collision
-  if(head.x < 0 || head.y < 0 || head.x >= 300 || head.y >= 300 ||
-     snake.some(s=>s.x===head.x && s.y===head.y)){
-    dieSound.play();
-    snake = [{x:150,y:150}];
-    dir = null;
-    score = 0;
-    speed = baseSpeed;
-    scoreDisplay.textContent = "Score: 0";
-    food = randomFood();
+  // hit cage
+  if(head.x < cage.x + cage.thickness || head.x >= cage.x+cage.w-cage.thickness ||
+     head.y < cage.y + cage.thickness || head.y >= cage.y+cage.h-cage.thickness){
+    fattenSound.play();
+    snake.unshift({...snake[0]});
+    head = {...snake[0]};
+  }
+
+  // collision with self
+  if(snake.some(s=>s.x===head.x && s.y===head.y)){
+    gameOver();
     return;
   }
 
-  // Eat food
+  // eat food
   if(head.x === food.x && head.y === food.y){
     eatSound.play();
     snake.unshift(head);
     food = randomFood();
     score += 1;
-    scoreDisplay.textContent = "Score: "+score;
-
-    // Increase speed every 10 points by 5%
-    if(score % 10 === 0){
-      speed *= 0.95;
-    }
-
+    throwSound.play();
+    if(score % 10 === 0) speed *= 0.95;
   } else {
     snake.pop();
     snake.unshift(head);
   }
+
+  updateScore();
 }
 
-// GAME LOOP
+function updateScore(){
+  scoreBoard.textContent = `Score: ${score} | Best: ${bestScore}`;
+}
+
+function gameOver(){
+  hitSound.play();
+  gameRunning = false;
+  if(score>bestScore) bestScore = score;
+  gameOverScore.textContent = `Score: ${score} | Best: ${bestScore}`;
+  gameOverScreen.style.display="flex";
+}
+
+function restartGame(){
+  initGame();
+}
+
 function gameLoop(time){
   update(time);
   draw();
   requestAnimationFrame(gameLoop);
 }
 
+// START
+initGame();
 gameLoop();
 </script>
 </body>
